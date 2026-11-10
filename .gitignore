@@ -1,0 +1,15 @@
+# Build outputs
+[Bb]in/
+[Oo]bj/
+publish/
+
+# Personal bookmark backups (contain private local paths) — never commit
+/*.html
+
+# IDE / user files
+.vs/
+*.user
+*.suo
+
+# Publish artifacts
+*.pdb
