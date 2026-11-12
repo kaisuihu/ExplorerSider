@@ -58,6 +58,7 @@ public partial class App : Application
         AutoStartHelper.RefreshPathIfEnabled();
 
         _store = BookmarkStore.Load();
+        AppLog.Write($"==== 启动 v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version} Bar=({_store.Settings.BarX:F0},{_store.Settings.BarY:F0}) Dock={_store.Settings.DockMode} Follow={_store.Settings.FollowMouse} ShowBar={_store.Settings.ShowBar}");
         _bar = new BarWindow(_store);
         _bar.Rebuild();
         if (_store.Settings.ShowBar) _bar.Show();
@@ -105,7 +106,8 @@ public partial class App : Application
     public void SetBarVisible(bool visible)
     {
         if (_bar == null || _store == null) return;
-        if (visible) _bar.Show(); else _bar.Hide();
+        // 显示走救援路径：即使窗口停在屏外/状态失真死角，也强制带回鼠标所在屏显示位
+        if (visible) _bar.RescueShow(); else _bar.Hide();
         _store.Settings.ShowBar = visible;
         _store.SaveSettings();
         Dispatcher.Invoke(() => _tray!.Menu = BuildTrayMenu());
@@ -120,8 +122,13 @@ public partial class App : Application
     private void SaveBarPosition()
     {
         if (_store == null) return;
-        _store.Settings.BarX = _bar?.SavedX ?? _store.Settings.BarX;
-        _store.Settings.BarY = _bar?.SavedY ?? _store.Settings.BarY;
+        // 只有本次会话拖动过把手才更新记忆——SavedX/SavedY 初值为 0，
+        // 未拖动时覆写会把无意义的 (0,0) 写进设置，导致重启后丢失屏幕归属记忆
+        if (_bar is { HasSaved: true })
+        {
+            _store.Settings.BarX = _bar.SavedX;
+            _store.Settings.BarY = _bar.SavedY;
+        }
         _store.SaveSettings();
     }
 
@@ -137,6 +144,14 @@ public partial class App : Application
         menu.Items.Add(TrayItem("导入书签 HTML…", () => ImportBookmarks(_manage)));
         menu.Items.Add(TrayItem("导出书签 HTML…", () => ExportBookmarks(_manage)));
         menu.Items.Add(new Separator());
+
+        var follow = new MenuItem { Header = "悬浮栏跟随鼠标切换显示器", IsCheckable = true, IsChecked = store.Settings.FollowMouse };
+        follow.Click += (s, e) =>
+        {
+            store.Settings.FollowMouse = follow.IsChecked; // IsCheckable 点击后自动翻转
+            store.SaveSettings();
+        };
+        menu.Items.Add(follow);
 
         var auto = new MenuItem { Header = "开机自启", IsCheckable = true, IsChecked = AutoStartHelper.IsEnabled() };
         auto.Click += (s, e) =>

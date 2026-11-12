@@ -2,7 +2,7 @@
 
 Windows 11 分层文件夹书签小工具：顶部悬浮书签栏 + 托盘，替代 Clover 的书签功能（Clover 已停止维护且不支持 Win11）。
 
-📖 文档：[使用手册（中文）](docs/USER_MANUAL_zh-CN.md) · [User Manual (English)](docs/USER_MANUAL_en-US.md) · [Release Notes](docs/RELEASE_NOTES_v1.0.0.md)
+📖 文档：[使用手册（中文）](docs/USER_MANUAL_zh-CN.md) · [User Manual (English)](docs/USER_MANUAL_en-US.md) · [Release Notes](docs/RELEASE_NOTES_v1.0.1.md)
 
 ## 功能
 
@@ -36,6 +36,7 @@ Windows 11 分层文件夹书签小工具：顶部悬浮书签栏 + 托盘，替
 | HotkeyShowBar | Ctrl+Alt+B | 呼出热键（改后重启生效） |
 | DockMode | 1 | 0=自由 1=顶部居中 2~5=四角 |
 | ShowBar | true | 悬浮条是否显示 |
+| FollowMouse | true | 悬浮栏是否跟随鼠标切换显示器（false=仅停靠屏响应贴边呼出，跨屏用热键；托盘菜单可切换） |
 
 ## 命令行
 

@@ -66,6 +66,10 @@ public static class PathOpener
     /// </summary>
     public static void OpenAsync(string? path, bool elevated = false, FolderOpenMode mode = FolderOpenMode.NewTab, Action<string?>? onError = null)
     {
+        // 点击瞬间（UI 线程，本进程持有"最后输入"资格）让渡置顶权给任意进程：
+        // 否则后台线程延迟 1~2s 后的 SetForegroundWindow 会被 Windows 前台锁定策略拒绝（只闪任务栏不置顶）
+        NativeMethods.AllowSetForegroundWindow(NativeMethods.ASFW_ANY);
+
         string? err;
         try
         {
@@ -176,7 +180,21 @@ public static class PathOpener
     private static void ActivateHwnd(IntPtr hwnd)
     {
         NativeMethods.ShowWindow(hwnd, 9 /* SW_RESTORE */);
-        NativeMethods.SetForegroundWindow(hwnd);
+        if (NativeMethods.SetForegroundWindow(hwnd)) return;
+
+        // 前台锁定兜底：把本线程挂到当前前台窗口线程的输入队列，借其资格强制置顶
+        try
+        {
+            var fg = NativeMethods.GetForegroundWindow();
+            if (fg == IntPtr.Zero) return;
+            var thisTid = NativeMethods.GetCurrentThreadId();
+            var fgTid = NativeMethods.GetWindowThreadProcessId(fg, out _);
+            if (fgTid == 0 || fgTid == thisTid) return;
+            NativeMethods.AttachThreadInput(thisTid, fgTid, true);
+            NativeMethods.SetForegroundWindow(hwnd);
+            NativeMethods.AttachThreadInput(thisTid, fgTid, false);
+        }
+        catch { }
     }
 
     /// <summary>目录打开链路（后台线程）：激活已有窗口 → 存在性/权限检查 → 按模式打开 → 兜底新窗口</summary>

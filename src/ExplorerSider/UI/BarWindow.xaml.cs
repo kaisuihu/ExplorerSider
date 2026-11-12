@@ -57,6 +57,9 @@ public partial class BarWindow : Window
     /// <summary>当前记忆的物理坐标（供退出时保存）</summary>
     public int SavedX { get; private set; }
 
+    /// <summary>本次会话是否拖动过把手（未拖动则退出时不覆写位置记忆，防默认 0 污染 BarX/BarY）</summary>
+    public bool HasSaved { get; private set; }
+
     public int SavedY { get; private set; }
 
     public BarWindow(BookmarkStore store)
@@ -91,6 +94,9 @@ public partial class BarWindow : Window
         SourceInitialized += (s, e) =>
         {
             _hwnd = new WindowInteropHelper(this).EnsureHandle();
+            // 工具窗口样式：从 Alt+Tab 中排除（ShowInTaskbar=False 只管任务栏，不管 Alt+Tab）
+            NativeMethods.SetWindowLong(_hwnd, NativeMethods.GWL_EXSTYLE,
+                NativeMethods.GetWindowLong(_hwnd, NativeMethods.GWL_EXSTYLE) | NativeMethods.WS_EX_TOOLWINDOW);
             _source = HwndSource.FromHwnd(_hwnd);
             _source.AddHook(WndProc);
             RegisterHotkey();
@@ -154,6 +160,7 @@ public partial class BarWindow : Window
 
             if (_shown && WindowOnMonitor(mi))
             {
+                AppLog.Write($"Hotkey: 收起（鼠标屏命中当前显示屏）");
                 SlideOut(mi);
             }
             else
@@ -229,13 +236,25 @@ public partial class BarWindow : Window
 
         if (!NativeMethods.GetCursorPos(out var p)) return;
         var mi = new NativeMethods.MONITORINFO();
-        if (!NativeMethods.GetMonitorAt(p, ref mi)) return;
+        if (_store.Settings.FollowMouse)
+        {
+            // 跟随模式：鼠标所在屏即为响应屏
+            if (!NativeMethods.GetMonitorAt(p, ref mi)) return;
+        }
+        else
+        {
+            // 固定模式：仅悬浮栏所在屏响应贴边呼出，鼠标到其他屏顶部不弹出不跟随（跨屏切换靠热键）
+            NativeMethods.GetWindowRect(_hwnd, out var wrC);
+            var center = new NativeMethods.POINT { X = (wrC.Left + wrC.Right) / 2, Y = (wrC.Top + wrC.Bottom) / 2 };
+            if (!NativeMethods.GetMonitorAt(center, ref mi)) return;
+        }
         NativeMethods.GetWindowRect(_hwnd, out var wr);
 
         bool mouseInWin = wr.Contains(p);
         bool popupHover = ClosePopupIfStale(); // 返回"菜单仍活跃"
 
-        bool trigger = InTriggerZone(p, mi);
+        // Contains 防御：垂直并排的相邻屏边缘坐标可能落入本屏触发带（跟随模式下 mi 即鼠标所在屏，恒真）
+        bool trigger = InTriggerZone(p, mi) && mi.rcMonitor.Contains(p);
         bool active = mouseInWin || trigger || popupHover || _modalOpen;
         if (active) _lastActive = DateTime.Now;
 
@@ -304,6 +323,7 @@ public partial class BarWindow : Window
         StartAnim(show, mi);
         _shown = true;
         _lastActive = DateTime.Now;
+        AppLog.Write($"SlideIn → ({show.X},{show.Y}) mon[{mi.rcMonitor.Left},{mi.rcMonitor.Top}~{mi.rcMonitor.Right},{mi.rcMonitor.Bottom}]");
     }
 
     private void SlideOut(NativeMethods.MONITORINFO mi)
@@ -312,6 +332,37 @@ public partial class BarWindow : Window
         var (_, hide) = CalcPositions(mi);
         StartAnim(hide, mi);
         _shown = false;
+        AppLog.Write($"SlideOut → ({hide.X},{hide.Y}) mon[{mi.rcMonitor.Left},{mi.rcMonitor.Top}~{mi.rcMonitor.Right},{mi.rcMonitor.Bottom}]");
+    }
+
+    /// <summary>
+    /// 紧急呼出（托盘"显示悬浮书签栏"/托盘左键）：无视当前状态与位置，强制带到鼠标所在屏显示位。
+    /// 用于悬浮栏因状态失真/坐标死角"显示不出来"时的保底出口。
+    /// </summary>
+    public void RescueShow()
+    {
+        if (_hwnd == IntPtr.Zero)
+        {
+            AppLog.Write("RescueShow: hwnd 未初始化，走普通 Show");
+            Show(); // 从未显示过（ShowBar=false 启动），正常路径初始化
+            return;
+        }
+        Show();
+        var mi = new NativeMethods.MONITORINFO();
+        if (!NativeMethods.GetMouseMonitor(ref mi))
+        {
+            AppLog.Write("RescueShow: 取鼠标屏失败");
+            return;
+        }
+        NativeMethods.GetWindowRect(_hwnd, out var before);
+        var (show, _) = CalcPositions(mi);
+        _animTimer.Stop();
+        _animBusy = false;
+        NativeMethods.SetWindowPos(_hwnd, IntPtr.Zero, show.X, show.Y, 0, 0,
+            NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOACTIVATE);
+        _shown = true;
+        _lastActive = DateTime.Now;
+        AppLog.Write($"RescueShow: ({before.Left},{before.Top}) → ({show.X},{show.Y}) mon[{mi.rcMonitor.Left},{mi.rcMonitor.Top}~{mi.rcMonitor.Right},{mi.rcMonitor.Bottom}]");
     }
 
     private void StartAnim(NativeMethods.POINT target, NativeMethods.MONITORINFO mi)
@@ -364,6 +415,7 @@ public partial class BarWindow : Window
                 // 启动时在记忆屏滑入展示片刻
                 SlideIn(mi);
             }
+            AppLog.Write($"启动恢复: 记忆({s.BarX:F0},{s.BarY:F0}) Dock={s.DockMode} Follow={s.FollowMouse} → hide({target.X},{target.Y})");
         }
         else
         {
@@ -371,6 +423,7 @@ public partial class BarWindow : Window
             var mi = new NativeMethods.MONITORINFO();
             var screen = new NativeMethods.POINT { X = 0, Y = 0 };
             if (NativeMethods.GetMonitorAt(screen, ref mi)) SlideIn(mi);
+            AppLog.Write("启动恢复: 无记忆，主屏滑入");
         }
     }
 
@@ -1203,6 +1256,7 @@ public partial class BarWindow : Window
         if (!NativeMethods.GetWindowRect(_hwnd, out var wr)) return;
         SavedX = wr.Left;
         SavedY = wr.Top;
+        HasSaved = true;
         var center = new NativeMethods.POINT { X = (wr.Left + wr.Right) / 2, Y = (wr.Top + wr.Bottom) / 2 };
         var mi = new NativeMethods.MONITORINFO();
         if (!NativeMethods.GetMonitorAt(center, ref mi)) return;

@@ -1,4 +1,4 @@
-# ExplorerSider User Manual (v1.0.0)
+# ExplorerSider User Manual (v1.0.1)
 
 A hierarchical folder-bookmark utility — a standalone replacement for Clover's bookmarks.
 
@@ -32,6 +32,7 @@ Place the exe in a fixed location (e.g. `D:\Tools\ExplorerSider\`) before enabli
 - Docks at **top-center** by default; auto-hides to the screen edge when the mouse leaves, leaving a **2px** sliver (nearly invisible)
 - Move the mouse near the exposed edge to slide it back out
 - Global hotkey **`Ctrl+Alt+B`**: toggle show/hide on **whichever monitor the mouse is on** (each monitor docks independently)
+- **Follow mouse across monitors** is on by default: pointing at another monitor's trigger edge slides the bar over there. If docking at the top keeps blocking your clicks, untick "Follow the mouse across monitors" in the tray menu — then only the bar's own monitor responds to the edge trigger, and the hotkey is the only way to move it across screens
 
 ### Dock position
 Right-click the **clover handle** on the left of the bar: top-center (default), top-left / top-right / bottom-left / bottom-right. Screen corners are natural mouse "traps" — easiest to hit.
@@ -133,6 +134,7 @@ ExplorerSider.exe --genicon [output.ico]        # Exports the code-drawn clover 
 | `HotkeyShowBar` | `Ctrl+Alt+B` | Toggle hotkey (restart the app after changing) |
 | `DockMode` | `1` | 1=top-center, 2–5=corners (0=free-floating is deprecated; normalized to 1 on load) |
 | `ShowBar` | `true` | Whether the bar is shown |
+| `FollowMouse` | `true` | Follow the mouse across monitors (toggle in tray menu); `false` = only the bar's own monitor responds to the edge trigger, hotkey moves it across screens |
 | `FolderOpenMode` | `SameWindow` | See §4 |
 
 ## 12. Troubleshooting
@@ -154,4 +156,4 @@ ExplorerSider.exe --genicon [output.ico]        # Exports the code-drawn clover 
 
 ---
 
-*ExplorerSider v1.0.0 · WPF (.NET 8) · zero NuGet dependencies, zero image assets (all icons drawn in code)*
+*ExplorerSider v1.0.1 · WPF (.NET 8) · zero NuGet dependencies, zero image assets (all icons drawn in code)*

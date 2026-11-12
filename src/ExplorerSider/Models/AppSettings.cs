@@ -39,6 +39,9 @@ public class AppSettings
     /// <summary>悬浮条是否显示</summary>
     public bool ShowBar { get; set; } = true;
 
+    /// <summary>悬浮栏是否跟随鼠标切换显示器：true=鼠标进入任一屏触发区即在该屏滑出；false=仅悬浮栏所在屏响应贴边呼出，跨屏用热键（Ctrl+Alt+B）切换</summary>
+    public bool FollowMouse { get; set; } = true;
+
     /// <summary>呼出悬浮条的全局热键（默认 Ctrl+Alt+B；格式 "Ctrl+Alt+B"）</summary>
     public string HotkeyShowBar { get; set; } = "Ctrl+Alt+B";
 
