@@ -13,38 +13,38 @@
     </Window.Resources>
     <DockPanel>
         <Menu DockPanel.Dock="Top">
-            <MenuItem Header="文件">
-                <MenuItem Header="导入书签（Netscape HTML / Clover 备份）…" Click="Import_Click"/>
-                <MenuItem Header="导出书签（Netscape HTML）…" Click="Export_Click"/>
+            <MenuItem x:Name="MwFileMenu" Header="文件">
+                <MenuItem x:Name="MwImportItem" Header="导入书签（Netscape HTML / Clover 备份）…" Click="Import_Click"/>
+                <MenuItem x:Name="MwExportItem" Header="导出书签（Netscape HTML）…" Click="Export_Click"/>
                 <Separator/>
-                <MenuItem Header="打开数据目录" Click="OpenDataDir_Click"/>
-                <MenuItem Header="开机自启" IsCheckable="True" x:Name="AutoStartMenu" Click="AutoStart_Click"/>
+                <MenuItem x:Name="MwDataDirItem" Header="打开数据目录" Click="OpenDataDir_Click"/>
+                <MenuItem x:Name="AutoStartMenu" Header="开机自启" IsCheckable="True" Click="AutoStart_Click"/>
                 <Separator/>
-                <MenuItem Header="退出程序" Click="Exit_Click"/>
+                <MenuItem x:Name="MwExitItem" Header="退出程序" Click="Exit_Click"/>
             </MenuItem>
-            <MenuItem Header="操作">
-                <MenuItem Header="新建书签" InputGestureText="Ins" Click="NewBookmark_Click"/>
-                <MenuItem Header="新建文件夹" Click="NewFolder_Click"/>
-                <MenuItem Header="编辑…" InputGestureText="F2" Click="Edit_Click"/>
-                <MenuItem Header="删除" InputGestureText="Del" Click="Delete_Click"/>
+            <MenuItem x:Name="MwActionsMenu" Header="操作">
+                <MenuItem x:Name="MwNewBookmarkItem" Header="新建书签" InputGestureText="Ins" Click="NewBookmark_Click"/>
+                <MenuItem x:Name="MwNewFolderItem" Header="新建文件夹" Click="NewFolder_Click"/>
+                <MenuItem x:Name="MwEditItem" Header="编辑…" InputGestureText="F2" Click="Edit_Click"/>
+                <MenuItem x:Name="MwDeleteItem" Header="删除" InputGestureText="Del" Click="Delete_Click"/>
                 <Separator/>
-                <MenuItem Header="检查失效路径" Click="CheckPaths_Click"/>
-                <MenuItem Header="刷新全部图标" Click="RefreshIcons_Click"/>
+                <MenuItem x:Name="MwCheckItem" Header="检查失效路径" Click="CheckPaths_Click"/>
+                <MenuItem x:Name="MwRefreshIconsItem" Header="刷新全部图标" Click="RefreshIcons_Click"/>
             </MenuItem>
         </Menu>
 
         <ToolBarTray DockPanel.Dock="Top">
             <ToolBar Band="0" BandIndex="0">
-                <Button Content="新建书签" Click="NewBookmark_Click"/>
-                <Button Content="新建文件夹" Click="NewFolder_Click"/>
-                <Button Content="编辑" Click="Edit_Click"/>
-                <Button Content="删除" Click="Delete_Click"/>
+                <Button x:Name="MwBtnNewBookmark" Content="新建书签" Click="NewBookmark_Click"/>
+                <Button x:Name="MwBtnNewFolder" Content="新建文件夹" Click="NewFolder_Click"/>
+                <Button x:Name="MwBtnEdit" Content="编辑" Click="Edit_Click"/>
+                <Button x:Name="MwBtnDelete" Content="删除" Click="Delete_Click"/>
                 <Separator/>
-                <Button Content="↑上移" Click="Up_Click"/>
-                <Button Content="↓下移" Click="Down_Click"/>
+                <Button x:Name="MwBtnUp" Content="↑上移" Click="Up_Click"/>
+                <Button x:Name="MwBtnDown" Content="↓下移" Click="Down_Click"/>
                 <Separator/>
-                <Button Content="检查失效路径" Click="CheckPaths_Click"/>
-                <Button Content="刷新全部图标" Click="RefreshIcons_Click"/>
+                <Button x:Name="MwBtnCheck" Content="检查失效路径" Click="CheckPaths_Click"/>
+                <Button x:Name="MwBtnRefreshIcons" Content="刷新全部图标" Click="RefreshIcons_Click"/>
             </ToolBar>
         </ToolBarTray>
 

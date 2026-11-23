@@ -1,4 +1,4 @@
-# ExplorerSider User Manual (v1.0.1)
+# ExplorerSider User Manual (v1.0.2)
 
 A hierarchical folder-bookmark utility — a standalone replacement for Clover's bookmarks.
 
@@ -59,7 +59,7 @@ Hold the clover handle to drag the bar to a temporary position (the chosen dock 
 | Type | Example | Behavior |
 |---|---|---|
 | Local directory | `E:\Projects\Demo` | Opens in File Explorer |
-| LAN share / NAS | `\\192.168.1.10\share`, `\\NAS\media` | Opens in File Explorer ("not found" notice while offline) |
+| LAN share / NAS | `\\192.168.1.10\share`, `\\NAS\media`, or bare server root `\\192.168.1.10` (lists shares) | Opens in File Explorer ("not found" notice while offline) |
 | Virtual locations | `::{CLSID}` (Control Panel, This PC, …) | Opens in File Explorer |
 | Registry | `Computer\HKEY_LOCAL_MACHINE\...` | Opens regedit positioned at the key |
 | Access-denied dirs | e.g. `systemprofile` | Detected automatically; opens elevated via UAC |
@@ -67,9 +67,9 @@ Hold the clover handle to drag the bar to a temporary position (the chosen dock 
 ### Open mode (`FolderOpenMode` in `settings.json`)
 | Value | Behavior |
 |---|---|
-| `SameWindow` (default) | Navigates the **currently active** Explorer window; if the path is already open, its window is brought to front instead |
+| `SameWindow` (default, recommended) | Navigates the **most recently active** Explorer window (including windows parked on Home/Search); if the path is already open, its window is brought to front instead |
 | `NewWindow` | Opens a new window every time |
-| `NewTab` | Attempts a new tab in the current window (Win11 24H2 restricts third-party tabs; falls back to SameWindow behavior on failure) |
+| `NewTab` (experimental) | Attempts a new tab via keyboard simulation (Win11 24H2 restricts third-party keystrokes: navigation is verified after Enter and **falls back to a new window** when swallowed; after 2 failures in a session, new-window is used directly without waiting) |
 
 ## 5. Drag & Drop
 
@@ -101,7 +101,7 @@ Same capabilities: a **blue indicator line** above/below the target decides the 
 
 The four-leaf-clover icon (drawn purely in code, no image assets):
 - Left-click / double-click: show/hide the floating bar
-- Right-click menu: Show bar, Bookmark manager, Import, Export, Start with Windows (checkable), Exit
+- Right-click menu: Show bar, Bookmark manager, Import, Export, Start with Windows (checkable), **Language / 语言** (English / 简体中文, effective immediately), Exit
 
 ## 8. Clover Interoperability
 
@@ -136,6 +136,7 @@ ExplorerSider.exe --genicon [output.ico]        # Exports the code-drawn clover 
 | `ShowBar` | `true` | Whether the bar is shown |
 | `FollowMouse` | `true` | Follow the mouse across monitors (toggle in tray menu); `false` = only the bar's own monitor responds to the edge trigger, hotkey moves it across screens |
 | `FolderOpenMode` | `SameWindow` | See §4 |
+| `Language` | `en-US` | UI language: `en-US` / `zh-CN` (switchable in the tray menu, saved immediately) |
 
 ## 12. Troubleshooting
 
@@ -156,4 +157,4 @@ ExplorerSider.exe --genicon [output.ico]        # Exports the code-drawn clover 
 
 ---
 
-*ExplorerSider v1.0.1 · WPF (.NET 8) · zero NuGet dependencies, zero image assets (all icons drawn in code)*
+*ExplorerSider v1.0.2 · WPF (.NET 8) · zero NuGet dependencies, zero image assets (all icons drawn in code)*

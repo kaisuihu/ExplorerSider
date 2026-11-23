@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -67,6 +67,8 @@ public partial class BarWindow : Window
         _store = store;
         InitializeComponent();
         HandleIcon.Source = CloverIcon.Render(32);
+        HandleIcon.ToolTip = L.HandleTooltip;
+        AddButton.ToolTip = L.AddButtonTooltip;
 
         _dockTimer.Tick += DockTimer_Tick;
         _animTimer.Tick += AnimTimer_Tick;
@@ -124,7 +126,7 @@ public partial class BarWindow : Window
         if (!ok) return;
         if (!NativeMethods.RegisterHotKey(_hwnd, _hotkeyId, mods, vk))
         {
-            MessageBox.Show(this, $"全局热键 {_store.Settings.HotkeyShowBar} 注册失败（可能已被其他程序占用），\n可修改 %APPDATA%\\ExplorerSider\\settings.json 中的 HotkeyShowBar 后重启。",
+            MessageBox.Show(this, L.HotkeyFailed(_store.Settings.HotkeyShowBar),
                 "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Warning);
         }
     }
@@ -333,6 +335,17 @@ public partial class BarWindow : Window
         StartAnim(hide, mi);
         _shown = false;
         AppLog.Write($"SlideOut → ({hide.X},{hide.Y}) mon[{mi.rcMonitor.Left},{mi.rcMonitor.Top}~{mi.rcMonitor.Right},{mi.rcMonitor.Bottom}]");
+    }
+
+    /// <summary>
+    /// 语言切换后重建缓存菜单：把手菜单在构造时缓存（ContextMenu 属性），
+    /// 节点右键菜单在 Rebuild 构建按钮时缓存——不重建则切换语言后仍显示旧语言。
+    /// </summary>
+    public void InvalidateMenus()
+    {
+        ContextMenu = BuildBarMenu();
+        Rebuild();            // 与 _store.Changed 相同的安全路径：重建按钮条（含各自 BuildNodeMenu）
+        RefreshActivePopup(); // 打开中的子列表也刷新（如 "(empty)" 占位）
     }
 
     /// <summary>
@@ -654,7 +667,7 @@ public partial class BarWindow : Window
             has = true;
         }
         if (!has)
-            menu.Items.Add(new MenuItem { Header = "(空)", IsEnabled = false });
+            menu.Items.Add(new MenuItem { Header = L.EmptyItem, IsEnabled = false });
 
         // 列表空白处松开 = 放入该文件夹末尾
         menu.AllowDrop = true;
@@ -763,7 +776,7 @@ public partial class BarWindow : Window
         {
             mi = new MenuItem { Header = node.Name, Icon = icon };
             if (node.Children.Count == 0)
-                mi.Items.Add(new MenuItem { Header = "(空)", IsEnabled = false });
+                mi.Items.Add(new MenuItem { Header = L.EmptyItem, IsEnabled = false });
             else
                 foreach (var c in node.Children) mi.Items.Add(BuildMenuItem(c, keepExpanded));
             if (keepExpanded != null && keepExpanded.Contains(node.Id))
@@ -1043,13 +1056,13 @@ public partial class BarWindow : Window
         var menu = new ContextMenu();
         if (!node.IsFolder)
         {
-            menu.Items.Add(MItem("打开", () => TryOpen(node)));
-            menu.Items.Add(MItem("以管理员身份打开", () =>
+            menu.Items.Add(MItem(L.MenuOpen, () => TryOpen(node)));
+            menu.Items.Add(MItem(L.MenuOpenAdmin, () =>
             {
                 PathOpener.OpenAsync(node.Path, elevated: true, onError: err =>
                     Dispatcher.Invoke(() => MessageBox.Show(this, err, "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Warning)));
             }));
-            menu.Items.Add(MItem("刷新图标", () =>
+            menu.Items.Add(MItem(L.MenuRefreshIcon, () =>
             {
                 node.Icon = IconHelper.FetchIconDataUri(node.Path);
                 _store.Save();
@@ -1058,12 +1071,12 @@ public partial class BarWindow : Window
         }
         else
         {
-            menu.Items.Add(MItem("新建子书签…", () => EditItem(node, asFolder: false)));
+            menu.Items.Add(MItem(L.MenuNewChildBookmark, () => EditItem(node, asFolder: false)));
             // 暂不支持多层文件夹：不提供"新建子文件夹"
             menu.Items.Add(new Separator());
         }
-        menu.Items.Add(MItem("编辑…", () => EditItem(node: node)));
-        menu.Items.Add(MItem("删除", () => DeleteNode(node)));
+        menu.Items.Add(MItem(L.MenuEdit, () => EditItem(node: node)));
+        menu.Items.Add(MItem(L.MenuDelete, () => DeleteNode(node)));
         TrackMenu(menu);
         return menu;
     }
@@ -1104,7 +1117,7 @@ public partial class BarWindow : Window
         else
         {
             parent = parentFolder ?? _store.Root;
-            target = asFolder ? BookmarkNode.NewFolder("新文件夹") : BookmarkNode.NewBookmark("新书签", "");
+            target = asFolder ? BookmarkNode.NewFolder(L.DefaultFolderName) : BookmarkNode.NewBookmark(L.DefaultBookmarkName, "");
         }
 
         _modalOpen = true;
@@ -1130,13 +1143,13 @@ public partial class BarWindow : Window
     {
         int n = node.IsFolder ? node.CountBookmarks() : 1;
         var msg = node.IsFolder
-            ? $"删除文件夹“{node.Name}”及其 {n} 个书签？"
-            : $"删除书签“{node.Name}”？";
+            ? L.DeleteFolderConfirm(node.Name, n)
+            : L.DeleteBookmarkConfirm(node.Name);
 
         _modalOpen = true;
         try
         {
-            if (MessageBox.Show(this, msg, "确认删除", MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
+            if (MessageBox.Show(this, msg, L.DeleteTitle, MessageBoxButton.YesNo, MessageBoxImage.Question) == MessageBoxResult.Yes)
             {
                 var parent = FindParentOf(node) ?? _store.Root;
                 parent.Children.Remove(node);
@@ -1154,8 +1167,8 @@ public partial class BarWindow : Window
     private void AddButton_Click(object sender, RoutedEventArgs e)
     {
         var m = new ContextMenu();
-        m.Items.Add(MItem("新建书签…", () => EditItem()));
-        m.Items.Add(MItem("新建文件夹…", () => EditItem(asFolder: true)));
+        m.Items.Add(MItem(L.MenuNewBookmark, () => EditItem()));
+        m.Items.Add(MItem(L.MenuNewFolder, () => EditItem(asFolder: true)));
         m.PlacementTarget = AddButton;
         m.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
         TrackMenu(m);
@@ -1291,14 +1304,14 @@ public partial class BarWindow : Window
         _dockItems.Clear();
         var menu = new ContextMenu();
 
-        var dock = new MenuItem { Header = "停靠位置" };
+        var dock = new MenuItem { Header = L.MenuDockPosition };
         foreach (var (label, mode) in new[]
         {
-            ("屏幕顶部居中", DockMode.TopAutoHide),
-            ("左上角", DockMode.TopLeftAutoHide),
-            ("右上角", DockMode.TopRightAutoHide),
-            ("左下角", DockMode.BottomLeftAutoHide),
-            ("右下角", DockMode.BottomRightAutoHide)
+            (L.DockTop, DockMode.TopAutoHide),
+            (L.DockTopLeft, DockMode.TopLeftAutoHide),
+            (L.DockTopRight, DockMode.TopRightAutoHide),
+            (L.DockBottomLeft, DockMode.BottomLeftAutoHide),
+            (L.DockBottomRight, DockMode.BottomRightAutoHide)
         })
         {
             var item = RadioMode(label, mode);
@@ -1308,13 +1321,13 @@ public partial class BarWindow : Window
         menu.Items.Add(dock);
 
         // 文件夹打开方式（三态）
-        var open = new MenuItem { Header = "文件夹打开方式" };
+        var open = new MenuItem { Header = L.MenuOpenMode };
         var openItems = new List<MenuItem>();
         foreach (var (label, m) in new[]
         {
-            ("新标签页打开（默认）", FolderOpenMode.NewTab),
-            ("在当前窗口跳转", FolderOpenMode.SameWindow),
-            ("总是新开窗口", FolderOpenMode.NewWindow)
+            (L.OpenModeNewTab, FolderOpenMode.NewTab),
+            (L.OpenModeSameWindow, FolderOpenMode.SameWindow),
+            (L.OpenModeNewWindow, FolderOpenMode.NewWindow)
         })
         {
             var item = new MenuItem { Header = label, IsCheckable = true };
@@ -1331,10 +1344,10 @@ public partial class BarWindow : Window
         }
         menu.Items.Add(open);
         menu.Items.Add(new Separator());
-        menu.Items.Add(MItem("书签管理…", () => ((App)Application.Current).ShowManage()));
-        menu.Items.Add(MItem("隐藏悬浮条", () => ((App)Application.Current).SetBarVisible(false)));
+        menu.Items.Add(MItem(L.TrayManage, () => ((App)Application.Current).ShowManage()));
+        menu.Items.Add(MItem(L.MenuHideBar, () => ((App)Application.Current).SetBarVisible(false)));
         menu.Items.Add(new Separator());
-        menu.Items.Add(MItem("退出", () => ((App)Application.Current).ShutdownApp()));
+        menu.Items.Add(MItem(L.TrayExit, () => ((App)Application.Current).ShutdownApp()));
         TrackMenu(menu);
         return menu;
     }

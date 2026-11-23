@@ -22,7 +22,7 @@ public partial class ManageWindow : Window
     {
         InitializeComponent();
         _store = store;
-        Title = $"ExplorerSider 书签管理 — {BookmarkStore.DataDir}";
+        ApplyLanguage();
 
         _store.Changed += OnStoreChanged;
         RebuildTree();
@@ -128,9 +128,37 @@ public partial class ManageWindow : Window
 
     private BookmarkNode ParentOf(BookmarkNode node) => _store.Root.FindParent(node) ?? _store.Root;
 
+    /// <summary>按当前语言设置窗口标题与 XAML 静态文本（启动时与托盘切换语言后调用）</summary>
+    public void ApplyLanguage()
+    {
+        Title = L.ManageTitle(BookmarkStore.DataDir);
+        MwFileMenu.Header = L.MwMenuFile;
+        MwImportItem.Header = L.MwMenuImport;
+        MwExportItem.Header = L.MwMenuExport;
+        MwDataDirItem.Header = L.MwMenuDataDir;
+        AutoStartMenu.Header = L.MwMenuAutoStart;
+        MwExitItem.Header = L.MwMenuExit;
+        MwActionsMenu.Header = L.MwMenuActions;
+        MwNewBookmarkItem.Header = L.MenuNewBookmark.TrimEnd('…');
+        MwNewFolderItem.Header = L.MenuNewFolder.TrimEnd('…');
+        MwEditItem.Header = L.MenuEdit;
+        MwDeleteItem.Header = L.MenuDelete;
+        MwCheckItem.Header = L.MwMenuCheckPaths;
+        MwRefreshIconsItem.Header = L.MwMenuRefreshIcons;
+        MwBtnNewBookmark.Content = L.MenuNewBookmark.TrimEnd('…');
+        MwBtnNewFolder.Content = L.MenuNewFolder.TrimEnd('…');
+        MwBtnEdit.Content = L.MenuEdit.TrimEnd('…');
+        MwBtnDelete.Content = L.MenuDelete;
+        MwBtnUp.Content = L.MwBtnUp;
+        MwBtnDown.Content = L.MwBtnDown;
+        MwBtnCheck.Content = L.MwMenuCheckPaths;
+        MwBtnRefreshIcons.Content = L.MwMenuRefreshIcons;
+        StatusText.Text = L.MwStatusHint;
+    }
+
     private void NewBookmark_Click(object sender, RoutedEventArgs e)
     {
-        var node = BookmarkNode.NewBookmark("新书签", "");
+        var node = BookmarkNode.NewBookmark(L.DefaultBookmarkName, "");
         if (EditDialog.Show(this, node, isNew: true))
         {
             node.Icon = IconHelper.FetchIconDataUri(node.Path);
@@ -142,7 +170,7 @@ public partial class ManageWindow : Window
 
     private void NewFolder_Click(object sender, RoutedEventArgs e)
     {
-        var node = BookmarkNode.NewFolder("新文件夹");
+        var node = BookmarkNode.NewFolder(L.DefaultFolderName);
         if (EditDialog.Show(this, node, isNew: true))
         {
             TargetFolder.Children.Add(node);
@@ -170,7 +198,7 @@ public partial class ManageWindow : Window
             targets.Add(_selected);
         if (targets.Count == 0) return;
 
-        if (MessageBox.Show(this, $"确认删除选中的 {targets.Count} 项（含其中全部内容）？", "确认删除",
+        if (MessageBox.Show(this, L.MwDeleteConfirm(targets.Count), L.DeleteTitle,
             MessageBoxButton.YesNo, MessageBoxImage.Question) != MessageBoxResult.Yes) return;
 
         foreach (var node in targets)
@@ -225,7 +253,7 @@ public partial class ManageWindow : Window
 
     #region 检查失效 / 刷新图标
 
-    private void CheckPaths_Click(object sender, RoutedEventArgs e) => RunBackground("正在检查路径（网络共享可能较慢）…", () =>
+    private void CheckPaths_Click(object sender, RoutedEventArgs e) => RunBackground(L.MwChecking, () =>
     {
         int bad = 0;
         void Walk(BookmarkNode n)
@@ -243,10 +271,10 @@ public partial class ManageWindow : Window
         Walk(_store.Root);
         return bad;
     },
-    bad => MessageBox.Show(this, bad == 0 ? "全部书签路径有效 ✓" : $"{bad} 个书签路径不存在（已标红，可能是网络共享暂不可达）",
-        "检查完成", MessageBoxButton.OK, MessageBoxImage.Information));
+    bad => MessageBox.Show(this, bad == 0 ? L.MwCheckAllValid : L.MwCheckBad(bad),
+        L.MwCheckTitle, MessageBoxButton.OK, MessageBoxImage.Information));
 
-    private void RefreshIcons_Click(object sender, RoutedEventArgs e) => RunBackground("正在刷新图标（网络共享可能较慢）…", () =>
+    private void RefreshIcons_Click(object sender, RoutedEventArgs e) => RunBackground(L.MwRefreshingIcons, () =>
     {
         int n = 0;
         void Walk(BookmarkNode node)
@@ -264,7 +292,7 @@ public partial class ManageWindow : Window
         Walk(_store.Root);
         return n;
     },
-    n => MessageBox.Show(this, $"已刷新 {n} 个书签图标（不可达的网络路径保留原图标）", "刷新图标",
+    n => MessageBox.Show(this, L.MwIconsRefreshed(n), L.MwRefreshTitle,
         MessageBoxButton.OK, MessageBoxImage.Information));
 
     /// <summary>后台执行批量任务（避免 SHGetFileInfo/Directory.Exists 对不可达网络路径阻塞 UI），完成后 UI 线程回调并保存</summary>

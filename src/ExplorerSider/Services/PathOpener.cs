@@ -1,4 +1,4 @@
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.IO;
 using System.Text.RegularExpressions;
 using ExplorerSider.Models;
@@ -50,7 +50,7 @@ public static class PathOpener
             {
                 PathKind.LocalDirectory => Directory.Exists(path),
                 PathKind.LocalFile => File.Exists(path),
-                PathKind.Unc => Directory.Exists(path!) || File.Exists(path),
+                PathKind.Unc => Directory.Exists(path!) || File.Exists(path) || IsUncServerRoot(path!),
                 PathKind.Shell or PathKind.Registry => true, // 虚拟路径无法用 Exists 判断，视为有效
                 _ => false
             };
@@ -117,7 +117,7 @@ public static class PathOpener
                     return;
 
                 default:
-                    onError?.Invoke("无法识别的路径：\n" + path);
+                    onError?.Invoke(L.ErrUnknownPath(path));
                     return;
             }
         }
@@ -125,11 +125,11 @@ public static class PathOpener
         {
             // 1223 = 用户取消 UAC
             if (ex.NativeErrorCode == 1223) return;
-            err = "打开失败：" + ex.Message;
+            err = L.ErrOpenFailed + ex.Message;
         }
         catch (Exception ex)
         {
-            err = "打开失败：" + ex.Message;
+            err = L.ErrOpenFailed + ex.Message;
         }
         onError?.Invoke(err);
     }
@@ -151,10 +151,14 @@ public static class PathOpener
         }
     }
 
-    /// <summary>一次 COM 枚举所有资源管理器窗口（句柄+规范化本地路径），供各决策共用减少跨进程往返</summary>
-    private static List<(IntPtr hwnd, string path)> EnumerateExplorerWindows()
+    /// <summary>
+    /// 一次 COM 枚举所有资源管理器窗口（句柄+规范化本地路径），供各决策共用减少跨进程往返。
+    /// path 为 null = 该窗口当前不在文件路径上（Win11 手动新开窗口默认停"主页"，搜索/图库同理）：
+    /// 这样的窗口同样保留——它们是"最近访问窗口"的合法候选，且其 Shell 条目可直接 Navigate2 导航。
+    /// </summary>
+    private static List<(IntPtr hwnd, string? path)> EnumerateExplorerWindows()
     {
-        var list = new List<(IntPtr hwnd, string path)>();
+        var list = new List<(IntPtr hwnd, string? path)>();
         var shellType = Type.GetTypeFromProgID("Shell.Application");
         if (shellType == null) return list;
         dynamic shell = Activator.CreateInstance(shellType)!;
@@ -162,12 +166,12 @@ public static class PathOpener
         {
             try
             {
+                IntPtr h = (IntPtr)(long)(int)w.HWND;
+                string? local = null;
                 string loc = (string)w.LocationURL;
-                if (string.IsNullOrEmpty(loc) || !loc.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
-                    continue;
-                var local = UrlToLocalPath(loc);
-                if (local == null) continue;
-                list.Add(((IntPtr)(long)(int)w.HWND, local));
+                if (!string.IsNullOrEmpty(loc) && loc.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+                    local = UrlToLocalPath(loc);
+                list.Add((h, local));
             }
             catch
             {
@@ -175,6 +179,23 @@ public static class PathOpener
             }
         }
         return list;
+    }
+
+    /// <summary>
+    /// 从 Shell 枚举到的窗口中取 Z 序最靠前（≈用户最后访问）的那个。
+    /// EnumWindows 按 Z 序从顶到底遍历顶层窗口，第一个命中即最近使用；
+    /// 最小化窗口在 Z 序中沉底，自然不会被选中。
+    /// </summary>
+    private static IntPtr GetMostRecentHwnd(IEnumerable<IntPtr> hwnds)
+    {
+        var set = new HashSet<IntPtr>(hwnds);
+        IntPtr best = IntPtr.Zero;
+        NativeMethods.EnumWindows((h, _) =>
+        {
+            if (set.Contains(h)) { best = h; return false; }
+            return true;
+        }, IntPtr.Zero);
+        return best;
     }
 
     private static void ActivateHwnd(IntPtr hwnd)
@@ -202,10 +223,13 @@ public static class PathOpener
     {
         try
         {
-            if (!Directory.Exists(path))
-                return "文件夹不存在或无法访问：\n" + path;
+            // 裸 UNC 服务器根（\\host 无共享名）不是文件系统目录：Directory.Exists 恒 false
+            // 且 .NET 直接拒绝该形式，但 shell 可浏览共享列表 → 跳过本地存在性/权限检查
+            bool uncRoot = IsUncServerRoot(path);
+            if (!uncRoot && !Directory.Exists(path))
+                return L.ErrFolderNotFound(path);
 
-            if (!CanListDirectory(path))
+            if (!uncRoot && !CanListDirectory(path))
             {
                 // 无权限列出内容（如 systemprofile）：提升打开
                 Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"")
@@ -217,21 +241,23 @@ public static class PathOpener
             }
 
             // 单次 COM 枚举（限时 800ms，explorer 忙时快速失败走兜底）
-            var wins = RunOr(EnumerateExplorerWindows, new List<(IntPtr hwnd, string path)>(), 800);
+            var wins = RunOr(EnumerateExplorerWindows, new List<(IntPtr hwnd, string? path)>(), 800);
 
-            // 1. 已有窗口打开该文件夹 → 激活跳转
+            // 1. 已有窗口打开该文件夹 → 激活跳转（仅匹配已知路径的条目；null=主页/搜索等非文件视图）
             var existing = wins.FirstOrDefault(w =>
-                string.Equals(w.path, path, StringComparison.OrdinalIgnoreCase));
+                w.path != null && string.Equals(w.path, path, StringComparison.OrdinalIgnoreCase));
             if (existing != default && existing.hwnd != IntPtr.Zero)
             {
                 ActivateHwnd(existing.hwnd);
                 return null;
             }
 
-            // 2. 按模式处理（有可用窗口时）
+            // 2. 按模式处理（有可用窗口时）：取 Z 序最靠前（≈最近访问）的窗口——
+            //    Shell COM 枚举顺序是按打开先后，wins[0] 是最早打开的窗口，不是用户正在用的
             if (wins.Count > 0)
             {
-                var hwnd = wins[0].hwnd;
+                var hwnd = GetMostRecentHwnd(wins.Select(w => w.hwnd));
+                if (hwnd == IntPtr.Zero) hwnd = wins[0].hwnd; // Z 序匹配失败时的保守回退
                 if (mode == FolderOpenMode.SameWindow)
                 {
                     var ok = RunOr(() => { NavigateHwnd(hwnd, path); return true; }, false, 800);
@@ -251,11 +277,11 @@ public static class PathOpener
         catch (System.ComponentModel.Win32Exception ex)
         {
             if (ex.NativeErrorCode == 1223) return null;
-            return "打开失败：" + ex.Message;
+            return L.ErrOpenFailed + ex.Message;
         }
         catch (Exception ex)
         {
-            return "打开失败：" + ex.Message;
+            return L.ErrOpenFailed + ex.Message;
         }
     }
 
@@ -283,6 +309,9 @@ public static class PathOpener
     /// <summary>键盘模拟互斥标志：防止连续点击多个书签时键序交错互拆</summary>
     private static int _kbBusy;
 
+    /// <summary>本会话键序被系统吞掉的次数：≥2 次后 NewTab 直接走新窗口，不再白等模拟+验证（~1.7s）</summary>
+    private static int _kbFailCount;
+
     private static void StartExplorer(string path) =>
         Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
 
@@ -300,6 +329,9 @@ public static class PathOpener
         }
         try
         {
+            // 本会话已多次验证键序被系统吞掉（前台校验通过但无导航效果）：直接新窗口，不再白等
+            if (Volatile.Read(ref _kbFailCount) >= 2) { StartExplorer(path); return; }
+
             NativeMethods.ShowWindow(hwnd, 9);
             NativeMethods.SetForegroundWindow(hwnd);
             System.Threading.Thread.Sleep(400);
@@ -331,9 +363,22 @@ public static class PathOpener
 
             NativeMethods.SendKey(NativeMethods.VK_RETURN);
             NativeMethods.SendKey(NativeMethods.VK_RETURN, up: true);
+
+            // 回车后验证是否真的导航成功：Win11 24H2 上 SendInput 可能被整体吞掉，
+            // 前台校验全部通过但键序无效 → 静默无反应。未检测到目标路径则兜底新开窗口。
+            System.Threading.Thread.Sleep(900);
+            bool navigated = RunOr(
+                () => EnumerateExplorerWindows().Any(w => string.Equals(w.path, path, StringComparison.OrdinalIgnoreCase)),
+                false, 800);
+            if (!navigated)
+            {
+                Interlocked.Increment(ref _kbFailCount);
+                StartExplorer(path);
+            }
         }
         catch
         {
+            Interlocked.Increment(ref _kbFailCount);
             StartExplorer(path); // 键盘模拟异常：兜底新窗口
         }
         finally
@@ -353,6 +398,18 @@ public static class PathOpener
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// 裸 UNC 服务器根（\\host 或 \\host\，无共享名）：不是文件系统目录，
+    /// Directory.Exists 恒 false 且 .NET 路径 API 直接拒绝（ArgumentException），
+    /// 但 shell/explorer 可用浏览语义打开（枚举共享列表）。
+    /// </summary>
+    public static bool IsUncServerRoot(string? path)
+    {
+        if (path == null || !path.StartsWith("\\\\")) return false;
+        var parts = path.TrimEnd('\\').Split('\\', StringSplitOptions.RemoveEmptyEntries);
+        return parts.Length == 1; // 仅主机段
     }
 
     /// <summary>探测目录是否可列举（区分"存在但无权限"，如 C:\Windows\System32\config\systemprofile）</summary>

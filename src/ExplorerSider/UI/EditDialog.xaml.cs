@@ -1,5 +1,6 @@
 using System.Windows;
 using ExplorerSider.Models;
+using ExplorerSider.Services;
 
 namespace ExplorerSider.UI;
 
@@ -13,7 +14,16 @@ public partial class EditDialog : Window
         InitializeComponent();
         _node = node;
         Owner = owner;
-        Title = (isNew ? "新建" : "编辑") + (node.IsFolder ? "文件夹" : "书签");
+        // 语言相关文本运行时赋值（XAML 仅占位）
+        Title = isNew
+            ? (node.IsFolder ? L.EditNewFolderTitle : L.EditNewBookmarkTitle)
+            : (node.IsFolder ? L.EditFolderTitle : L.EditBookmarkTitle);
+        NameLabel.Text = L.LabelName;
+        PathLabel.Text = L.LabelPath;
+        BrowseBtn.Content = L.BtnBrowse;
+        PathHintText.Text = L.PathHint;
+        OkBtn.Content = L.BtnOk;
+        CancelBtn.Content = L.BtnCancel;
 
         NameBox.Text = node.Name;
         if (node.IsFolder)
@@ -21,6 +31,7 @@ public partial class EditDialog : Window
             PathLabel.Visibility = Visibility.Collapsed;
             PathBox.Visibility = Visibility.Collapsed;
             BrowseBtn.Visibility = Visibility.Collapsed;
+            PathHintText.Visibility = Visibility.Collapsed;
         }
         else
         {
@@ -40,7 +51,7 @@ public partial class EditDialog : Window
         // .NET 8 WPF 原生文件夹选择框
         var dlg = new Microsoft.Win32.OpenFolderDialog
         {
-            Title = "选择文件夹"
+            Title = L.FolderPickerTitle
         };
         if (dlg.ShowDialog(this) == true)
             PathBox.Text = dlg.FolderName;
@@ -51,7 +62,7 @@ public partial class EditDialog : Window
         var name = NameBox.Text.Trim();
         if (name.Length == 0)
         {
-            MessageBox.Show(this, "名称不能为空", "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Warning);
+            MessageBox.Show(this, L.NameRequired, "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
         _node.Name = name;
@@ -60,7 +71,7 @@ public partial class EditDialog : Window
             var path = PathBox.Text.Trim().Trim('"');
             if (path.Length == 0)
             {
-                MessageBox.Show(this, "路径不能为空", "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Warning);
+                MessageBox.Show(this, L.PathRequired, "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Warning);
                 return;
             }
             _node.Path = path;

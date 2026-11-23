@@ -49,7 +49,7 @@ public partial class App : Application
         _mutex = new Mutex(true, "ExplorerSider_SingleInstance_Mutex", out var isNew);
         if (!isNew)
         {
-            MessageBox.Show("ExplorerSider 已在运行，请查看系统托盘（四叶草图标）。", "ExplorerSider",
+            MessageBox.Show(L.AlreadyRunning, "ExplorerSider",
                 MessageBoxButton.OK, MessageBoxImage.Information);
             Shutdown();
             return;
@@ -58,6 +58,7 @@ public partial class App : Application
         AutoStartHelper.RefreshPathIfEnabled();
 
         _store = BookmarkStore.Load();
+        L.Set(_store.Settings.Language);
         AppLog.Write($"==== 启动 v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version} Bar=({_store.Settings.BarX:F0},{_store.Settings.BarY:F0}) Dock={_store.Settings.DockMode} Follow={_store.Settings.FollowMouse} ShowBar={_store.Settings.ShowBar}");
         _bar = new BarWindow(_store);
         _bar.Rebuild();
@@ -137,15 +138,15 @@ public partial class App : Application
         var menu = new ContextMenu();
         var store = _store!;
 
-        var toggleText = store.Settings.ShowBar ? "隐藏悬浮书签栏" : "显示悬浮书签栏";
+        var toggleText = store.Settings.ShowBar ? L.TrayHideBar : L.TrayShowBar;
         menu.Items.Add(TrayItem(toggleText, () => SetBarVisible(!store.Settings.ShowBar)));
-        menu.Items.Add(TrayItem("书签管理…", ShowManage));
+        menu.Items.Add(TrayItem(L.TrayManage, ShowManage));
         menu.Items.Add(new Separator());
-        menu.Items.Add(TrayItem("导入书签 HTML…", () => ImportBookmarks(_manage)));
-        menu.Items.Add(TrayItem("导出书签 HTML…", () => ExportBookmarks(_manage)));
+        menu.Items.Add(TrayItem(L.TrayImport, () => ImportBookmarks(_manage)));
+        menu.Items.Add(TrayItem(L.TrayExport, () => ExportBookmarks(_manage)));
         menu.Items.Add(new Separator());
 
-        var follow = new MenuItem { Header = "悬浮栏跟随鼠标切换显示器", IsCheckable = true, IsChecked = store.Settings.FollowMouse };
+        var follow = new MenuItem { Header = L.TrayFollowMouse, IsCheckable = true, IsChecked = store.Settings.FollowMouse };
         follow.Click += (s, e) =>
         {
             store.Settings.FollowMouse = follow.IsChecked; // IsCheckable 点击后自动翻转
@@ -153,7 +154,7 @@ public partial class App : Application
         };
         menu.Items.Add(follow);
 
-        var auto = new MenuItem { Header = "开机自启", IsCheckable = true, IsChecked = AutoStartHelper.IsEnabled() };
+        var auto = new MenuItem { Header = L.TrayAutoStart, IsCheckable = true, IsChecked = AutoStartHelper.IsEnabled() };
         auto.Click += (s, e) =>
         {
             var enable = !AutoStartHelper.IsEnabled();
@@ -162,11 +163,33 @@ public partial class App : Application
         };
         menu.Items.Add(auto);
 
-        var hk = new MenuItem { Header = $"呼出热键：{store.Settings.HotkeyShowBar}（鼠标所在屏）", IsEnabled = false };
+        // 语言切换（English 默认；切换后托盘菜单重建，悬浮栏/管理窗菜单在下次打开/右键时自然生效）
+        var lang = new MenuItem { Header = L.LanguageMenu };
+        var en = new MenuItem { Header = "English", IsCheckable = true, IsChecked = !L.IsZh };
+        var zh = new MenuItem { Header = "简体中文", IsCheckable = true, IsChecked = L.IsZh };
+        en.Click += (s, e) => SwitchLanguage("en-US");
+        zh.Click += (s, e) => SwitchLanguage("zh-CN");
+        lang.Items.Add(en);
+        lang.Items.Add(zh);
+        menu.Items.Add(lang);
+
+        var hk = new MenuItem { Header = L.TrayHotkey(store.Settings.HotkeyShowBar), IsEnabled = false };
         menu.Items.Add(hk);
         menu.Items.Add(new Separator());
-        menu.Items.Add(TrayItem("退出", ShutdownApp));
+        menu.Items.Add(TrayItem(L.TrayExit, ShutdownApp));
         return menu;
+    }
+
+    private void SwitchLanguage(string lang)
+    {
+        if (L.Current == lang) return;
+        L.Set(lang);
+        _store!.Settings.Language = lang;
+        _store.SaveSettings();
+        AppLog.Write($"Language switched to {lang}");
+        _tray!.Menu = BuildTrayMenu(); // 立即重建托盘菜单
+        _manage?.ApplyLanguage();      // 管理窗口开着则重刷静态文本
+        _bar?.InvalidateMenus();       // 悬浮栏：重建把手菜单与各按钮缓存菜单
     }
 
     private static MenuItem TrayItem(string header, Action act)
@@ -182,8 +205,8 @@ public partial class App : Application
     {
         var dlg = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "导入 Netscape 书签 HTML（Clover / Chrome 导出）",
-            Filter = "书签 HTML|*.html;*.htm|所有文件|*.*"
+            Title = L.ImportDialogTitle,
+            Filter = L.ImportFilter
         };
         if (dlg.ShowDialog(owner) != true) return;
 
@@ -196,9 +219,8 @@ public partial class App : Application
             int n = imported.CountBookmarks();
 
             var choice = MessageBox.Show(owner,
-                $"文件包含 {n} 个书签、{imported.CountFolders()} 个文件夹。\n\n" +
-                "【是】替换现有全部书签\n【否】合并为根目录下的新文件夹\n【取消】放弃导入",
-                "导入方式", MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+                L.ImportSummary(n, imported.CountFolders()),
+                L.ImportModeTitle, MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
 
             if (choice == MessageBoxResult.Yes)
             {
@@ -212,11 +234,11 @@ public partial class App : Application
             }
             else return;
 
-            MessageBox.Show(owner, $"导入完成：{n} 个书签", "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Information);
+            MessageBox.Show(owner, L.ImportDone(n), "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show(owner, "导入失败：" + ex.Message, "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(owner, L.ImportFailed + ex.Message, "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 
@@ -226,21 +248,21 @@ public partial class App : Application
         var store = app._store!;
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
-            Title = "导出书签（Netscape HTML，可被 Clover / Chrome 导入）",
-            Filter = "书签 HTML|*.html",
-            FileName = $"ExplorerSider书签_{DateTime.Now:yyyy.MM.dd}.html"
+            Title = L.ExportDialogTitle,
+            Filter = L.ExportFilter,
+            FileName = $"{L.ExportFileName}{DateTime.Now:yyyy.MM.dd}.html"
         };
         if (dlg.ShowDialog(owner) != true) return;
 
         try
         {
             File.WriteAllText(dlg.FileName, NetscapeHtml.Export(store.Root), new UTF8Encoding(true));
-            MessageBox.Show(owner, $"已导出 {store.Root.CountBookmarks()} 个书签到：\n{dlg.FileName}", "导出完成",
+            MessageBox.Show(owner, L.ExportDone(store.Root.CountBookmarks(), dlg.FileName), L.ExportDoneTitle,
                 MessageBoxButton.OK, MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show(owner, "导出失败：" + ex.Message, "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show(owner, "Export failed: " + ex.Message, "ExplorerSider", MessageBoxButton.OK, MessageBoxImage.Error);
         }
     }
 

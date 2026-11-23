@@ -92,6 +92,13 @@ internal static class NativeMethods
 
     internal const int ASFW_ANY = -1;
 
+    // ---- Z 序枚举（判定"最近访问的资源管理器窗口"）----
+
+    public delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
+
+    [DllImport("user32.dll")]
+    internal static extern bool EnumWindows(EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
     // ---- SendInput（模拟 Ctrl+T 新标签等键盘操作）----
 
     [StructLayout(LayoutKind.Sequential)]

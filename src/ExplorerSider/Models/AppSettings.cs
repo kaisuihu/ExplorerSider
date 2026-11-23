@@ -53,4 +53,7 @@ public class AppSettings
 
     /// <summary>首次运行（用于自动打开管理窗口引导导入）</summary>
     public bool FirstRun { get; set; } = true;
+
+    /// <summary>UI 语言："en-US"（默认）或 "zh-CN"；托盘菜单可切换</summary>
+    public string Language { get; set; } = "en-US";
 }

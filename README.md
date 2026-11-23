@@ -8,7 +8,7 @@ A hierarchical folder-bookmark utility for Windows 11: a floating bookmark bar +
 
 > Note: the app UI is currently in Simplified Chinese.
 
-📖 Docs: [User Manual (English)](docs/USER_MANUAL_en-US.md) · [使用手册（中文）](docs/USER_MANUAL_zh-CN.md) · [Release Notes](docs/RELEASE_NOTES_v1.0.1.md)
+📖 Docs: [User Manual (English)](docs/USER_MANUAL_en-US.md) · [使用手册（中文）](docs/USER_MANUAL_zh-CN.md) · [Release Notes](docs/RELEASE_NOTES_v1.0.2.md)
 
 ## Features
 
@@ -20,6 +20,7 @@ A hierarchical folder-bookmark utility for Windows 11: a floating bookmark bar +
 - **Admin-protected folders**: access-denied directories detected automatically and opened via UAC elevation; "Open as administrator" on the right-click menu too
 - **Clover interop**: import/export Netscape Bookmark HTML (compatible with Clover/Chrome, icons and timestamps preserved)
 - **Bookmark icons**: imported bookmarks keep their original Clover icons (pixel-identical); new ones fetch system icons automatically, refreshable
+- **Bilingual UI**: English (default) / 简体中文, switchable in the tray menu — menus, dialogs and error messages all covered
 - **System tray**: clover icon drawn purely in code — show/hide bar, manage, import/export, start-with-Windows
 
 ## Usage
@@ -43,6 +44,7 @@ A hierarchical folder-bookmark utility for Windows 11: a floating bookmark bar +
 | DockMode | 1 | 1=top-center, 2–5=corners (0=free is deprecated) |
 | ShowBar | true | Whether the bar is shown |
 | FollowMouse | true | Follow the mouse across monitors (false = only the bar's own monitor responds to the edge trigger; hotkey-only across screens; tray-toggleable) |
+| Language | en-US | UI language (en-US / zh-CN, switchable in the tray menu) |
 
 ## Command Line
 
@@ -79,7 +81,7 @@ Tech: WPF (.NET 8), zero NuGet dependencies, zero image assets (all icons drawn 
 
 Windows 11 分层文件夹书签小工具：顶部悬浮书签栏 + 托盘，替代 Clover 的书签功能（Clover 已停止维护且不支持 Win11）。
 
-📖 文档：[使用手册（中文）](docs/USER_MANUAL_zh-CN.md) · [User Manual (English)](docs/USER_MANUAL_en-US.md) · [Release Notes](docs/RELEASE_NOTES_v1.0.1.md)
+📖 文档：[使用手册（中文）](docs/USER_MANUAL_zh-CN.md) · [User Manual (English)](docs/USER_MANUAL_en-US.md) · [Release Notes](docs/RELEASE_NOTES_v1.0.2.md)
 
 ## 功能
 
@@ -91,6 +93,7 @@ Windows 11 分层文件夹书签小工具：顶部悬浮书签栏 + 托盘，替
 - **管理员权限目录**：自动检测无权访问的目录（如 systemprofile），弹 UAC 提权打开；也可右键"以管理员身份打开"
 - **Clover 互导**：导入/导出 Netscape Bookmark HTML（与 Clover/Chrome 书签格式兼容，含图标与时间戳）
 - **书签图标**：导入的书签保留 Clover 原图标（像素级一致）；新建的书签自动抓取系统图标，可"刷新图标"
+- **双语界面**：English（默认）/ 简体中文，托盘菜单即切即用，覆盖菜单/弹窗/错误提示
 - **系统托盘**：四叶草图标（代码原创绘制），显隐悬浮条 / 管理 / 导入导出 / 开机自启
 
 ## 使用
@@ -114,6 +117,7 @@ Windows 11 分层文件夹书签小工具：顶部悬浮书签栏 + 托盘，替
 | DockMode | 1 | 0=自由 1=顶部居中 2~5=四角 |
 | ShowBar | true | 悬浮条是否显示 |
 | FollowMouse | true | 悬浮栏是否跟随鼠标切换显示器（false=仅停靠屏响应贴边呼出，跨屏用热键；托盘菜单可切换） |
+| Language | en-US | UI 语言（en-US / zh-CN，托盘菜单可切换） |
 
 ## 命令行
 
